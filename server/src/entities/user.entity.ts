@@ -18,12 +18,19 @@ export class User {
 
   @Index()
   @Column({ unique: true })
+  email!: string;
+
+  @Column()
+  passwordHash!: string;
+
+  @Index()
+  @Column({ unique: true, nullable: true })
   sleeperId!: string;
 
-  @Column()
+  @Column({ nullable: true })
   username!: string;
 
-  @Column()
+  @Column({ nullable: true })
   displayName!: string;
 
   @Column({ nullable: true })

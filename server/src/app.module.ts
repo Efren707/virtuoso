@@ -8,12 +8,13 @@ import { League } from './entities/league.entity';
 import { Player } from './entities/player.entity';
 import { DraftPick } from './entities/draft-pick.entity';
 import { SleeperModule } from './modules/sleeper/sleeper.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '../.env' }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule, SleeperModule],
+      imports: [ConfigModule, SleeperModule, AuthModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
