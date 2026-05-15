@@ -12,4 +12,35 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Login — posts credentials, gets back a token and email:
+export async function login(email: string, password: string) {
+  const res = await api.post<{
+    token: string;
+    email: string;
+  }>('/auth/login', {
+    email,
+    password,
+  });
+
+  return res.data;
+}
+
+// Signup — same shape as login, different endpoint:
+export async function signup(email: string, password: string) {
+  const res = await api.post<{
+    token: string;
+    email: string;
+  }>('/auth/signup', {
+    email,
+    password,
+  });
+
+  return res.data;
+}
+
+// LinkSleeper — only needs a username; the interceptor attaches the JWT automatically:
+export async function linkSleeper(sleeperUsername: string) {
+  await api.post('/auth/link-sleeper', { username: sleeperUsername });
+}
+
 export default api;

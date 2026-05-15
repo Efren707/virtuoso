@@ -27,12 +27,12 @@ a data-driven edge without needing to be statisticians.
 
 ## 2. Current Status
 
-**Phase 3a — Frontend Scaffold: COMPLETE**
-Vite + React + TypeScript running in `client/`. Tailwind CSS (dark theme), React Router (all routes),
-Redux Toolkit store (`authSlice`, `leagueSlice`, `draftSlice`), Axios service layer with JWT interceptor
-and Vite dev proxy to NestJS. ESLint configured. Build compiles clean.
+**Phase 3b — Auth Pages: COMPLETE**
+Login, Signup, and LinkSleeper pages are fully wired to the NestJS backend. Auth flow verified
+end-to-end: signup → JWT stored → link Sleeper username → redirect to dashboard. Page refresh
+correctly restores auth state from localStorage. `PrivateRoute` guards protected routes.
 
-**Next step:** Begin Phase 3b — Login, Signup, and Sleeper Linking pages.
+**Next step:** Begin Phase 3c — Dashboard (fetch + display leagues) and Draft Room static layout.
 
 ---
 
@@ -182,12 +182,14 @@ NestJS + TypeORM entities, `SleeperModule` (Sleeper REST API wrapper), `AuthModu
 - [x] Axios service layer wired to NestJS
 - [x] ESLint for `client/`
 
-#### 3b — Auth Pages
+#### 3b — Auth Pages ✅ COMPLETE
 
-- [ ] Login page (email/password → JWT → Redux)
-- [ ] Signup page
-- [ ] Sleeper Linking page (`POST /auth/link-sleeper`)
-- [ ] Route guard: redirect unlinked users to linking flow
+- [x] Login page (email/password → JWT → Redux)
+- [x] Signup page
+- [x] Sleeper Linking page (`POST /auth/link-sleeper`)
+- [x] Route guard: `PrivateRoute` redirects unauthenticated → `/login`, unlinked → `/link-sleeper`
+- [x] Design system: Poppins font + color palette tokens via Tailwind v4 `@theme`
+- [x] `authSlice` localStorage persistence — auth state survives page refresh
 
 #### 3c — Core Pages
 
@@ -284,6 +286,7 @@ virtuoso/
 
 - **Node version EBADENGINE warning** — `eslint-visitor-keys` requires Node `^20.19.0` or `^22.13.0`; current is `v20.12.0`. Non-blocking — ESLint and all tooling work correctly. Resolve by upgrading Node when convenient.
 - **`synchronize: true` in TypeORM** — safe for local dev but must be replaced with migrations before any production deployment (Phase 7).
+- **Auth pages unstyled** — Login, Signup, and LinkSleeper pages have no Tailwind classes yet. Design tokens are configured; styling pass is deferred to after 3c is functional.
 
 ---
 
