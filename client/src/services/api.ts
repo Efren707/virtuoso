@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { League } from '../store/leagueSlice';
 
 const api = axios.create({
   baseURL: '/api',
@@ -41,6 +42,11 @@ export async function signup(email: string, password: string) {
 // LinkSleeper — only needs a username; the interceptor attaches the JWT automatically:
 export async function linkSleeper(sleeperUsername: string) {
   await api.post('/auth/link-sleeper', { username: sleeperUsername });
+}
+
+export async function getLeagues(): Promise<League[]> {
+  const res = await api.get<League[]>('/leagues');
+  return res.data;
 }
 
 export default api;

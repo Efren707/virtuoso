@@ -9,6 +9,7 @@ import { Player } from './entities/player.entity';
 import { DraftPick } from './entities/draft-pick.entity';
 import { SleeperModule } from './modules/sleeper/sleeper.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { LeaguesModule } from './modules/leagues/leagues.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AuthModule } from './modules/auth/auth.module';
         synchronize: true,
       }),
     }),
+    LeaguesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

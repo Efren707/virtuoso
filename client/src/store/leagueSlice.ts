@@ -1,10 +1,15 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { getLeagues } from '../services/api';
 
-interface League {
-  league_id: string;
+export interface League {
+  id: string;
+  sleeperId: string;
   name: string;
   season: string;
-  total_rosters: number;
+  status: string;
+  scoringType: 'ppr' | 'half_ppr' | 'standard';
+  totalRosters: number;
+  draftId: string | null;
 }
 
 interface LeagueState {
@@ -19,25 +24,29 @@ const initialState: LeagueState = {
   error: null,
 };
 
+export const fetchLeagues = createAsyncThunk('league/fetchLeagues', async () => {
+  return await getLeagues();
+});
+
 const leagueSlice = createSlice({
   name: 'league',
   initialState,
-  reducers: {
-    setLeagues(state, action) {
-      state.leagues = action.payload;
-      state.loading = false;
-      state.error = null;
-    },
-    setLoading(state) {
-      state.loading = true;
-      state.error = null;
-    },
-    setError(state, action) {
-      state.loading = false;
-      state.error = action.payload;
-    },
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchLeagues.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchLeagues.fulfilled, (state, action) => {
+        state.loading = false;
+        state.leagues = action.payload;
+      })
+      .addCase(fetchLeagues.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message ?? 'Failed to load leagues';
+      });
   },
 });
 
-export const { setLeagues, setLoading, setError } = leagueSlice.actions;
 export default leagueSlice.reducer;

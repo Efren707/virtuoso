@@ -27,12 +27,14 @@ a data-driven edge without needing to be statisticians.
 
 ## 2. Current Status
 
-**Phase 3b — Auth Pages: COMPLETE**
-Login, Signup, and LinkSleeper pages are fully wired to the NestJS backend. Auth flow verified
-end-to-end: signup → JWT stored → link Sleeper username → redirect to dashboard. Page refresh
-correctly restores auth state from localStorage. `PrivateRoute` guards protected routes.
+**Phase 3c — Core Pages: COMPLETE**
+Dashboard fetches and displays the user's Sleeper leagues (fetch-and-sync pattern: Sleeper API →
+upsert to DB → return to client). Draft Room renders a static three-column layout (available
+players / draft board grid / roster + AI picks) ready for Phase 4 real-time wiring. Loading and
+error states implemented on all async operations.
 
-**Next step:** Begin Phase 3c — Dashboard (fetch + display leagues) and Draft Room static layout.
+**Next step:** Phase 4a — NestJS WebSocket gateway that subscribes to Sleeper's live draft
+WebSocket and relays pick events to the browser via Socket.IO.
 
 ---
 
@@ -41,7 +43,7 @@ correctly restores auth state from localStorage. `PrivateRoute` guards protected
 ### MVP (Phase 1-3)
 
 - [x] Sleeper account connection (email/password signup → link Sleeper username)
-- [ ] Display user's leagues and upcoming/active drafts
+- [x] Display user's leagues and upcoming/active drafts
 - [ ] Real-time draft board sync (picks update live)
 - [ ] Basic player recommendations based on ADP + positional scarcity
 - [ ] Available player list with pick suggestions highlighted
@@ -125,7 +127,7 @@ correctly restores auth state from localStorage. `PrivateRoute` guards protected
 1. User signs up with email/password → bcrypt hash stored → JWT issued
 2. User links Sleeper account → `POST /auth/link-sleeper` → Sleeper API verifies username → sleeperId stored on User row (first-claim, unique constraint)
 3. User logs in with email/password → bcrypt compare → JWT issued
-4. User views their leagues → backend fetches from Sleeper REST API using stored sleeperId
+4. User views Dashboard → `GET /leagues` (JWT-protected) → backend fetches from Sleeper API using stored sleeperId → upserts each league into DB → links to user via `user_leagues` join table → returns league list
 5. Draft starts → backend subscribes to Sleeper's WebSocket for that draft
 6. Sleeper sends pick events → backend relays to browser via Socket.IO
 7. User requests recommendation → backend scores available players, calls Claude for explanation
@@ -144,6 +146,9 @@ correctly restores auth state from localStorage. `PrivateRoute` guards protected
 - `synchronize: true` for dev only
 - ESLint per package
 - Conventional commits
+- **League sync strategy:** fetch-and-sync on every Dashboard load (`GET /leagues` upserts from Sleeper into DB). Keeps data fresh; populates `leagues` table for Phase 4 draft subscriptions.
+- **`leagueSlice` uses `createAsyncThunk`** — pending/fulfilled/rejected states handled in `extraReducers`, not manual dispatch of `setLoading`/`setLeagues`/`setError`.
+- **Season hardcoded to `'2025'`** in `LeaguesService` for development. The constant is in `server/src/modules/leagues/leagues.service.ts` line ~25. Make user-selectable in a later phase.
 
 ---
 
@@ -191,12 +196,12 @@ NestJS + TypeORM entities, `SleeperModule` (Sleeper REST API wrapper), `AuthModu
 - [x] Design system: Poppins font + color palette tokens via Tailwind v4 `@theme`
 - [x] `authSlice` localStorage persistence — auth state survives page refresh
 
-#### 3c — Core Pages
+#### 3c — Core Pages ✅ COMPLETE
 
-- [ ] Dashboard: fetch + display user's leagues
-- [ ] Draft Room: static board layout
-- [ ] Loading/error states on all async ops
-- [ ] ESLint for `client/`
+- [x] Dashboard: fetch + display user's leagues (cards with name, season, scoring type, roster count)
+- [x] Draft Room: static three-column layout (available players / draft board / roster + AI picks)
+- [x] Loading/error states on all async ops (spinner + error message + retry button)
+- [ ] ESLint audit for `client/`
 
 ---
 
@@ -264,17 +269,35 @@ NestJS + TypeORM entities, `SleeperModule` (Sleeper REST API wrapper), `AuthModu
 ```
 virtuoso/
 ├── client/
+│   └── src/
+│       ├── pages/
+│       │   ├── LoginPage.tsx
+│       │   ├── SignupPage.tsx
+│       │   ├── LinkSleeperPage.tsx
+│       │   ├── DashboardPage.tsx
+│       │   └── DraftRoomPage.tsx
+│       ├── store/
+│       │   ├── index.ts        (RootState, AppDispatch)
+│       │   ├── authSlice.ts
+│       │   ├── leagueSlice.ts  (fetchLeagues thunk)
+│       │   └── draftSlice.ts
+│       ├── services/
+│       │   └── api.ts          (axios instance + login/signup/linkSleeper/getLeagues)
+│       └── components/
+│           └── PrivateRoute.tsx
 ├── server/
-│   ├── src/
-│   │   ├── entities/
-│   │   ├── modules/
-│   │   │   ├── auth/
-│   │   │   └── sleeper/
-│   │   ├── app.module.ts
-│   │   └── main.ts
-│   ├── eslint.config.mjs
-│   ├── tsconfig.json
-│   └── package.json
+│   └── src/
+│       ├── entities/
+│       │   ├── user.entity.ts
+│       │   ├── league.entity.ts
+│       │   ├── draft-pick.entity.ts
+│       │   └── player.entity.ts
+│       ├── modules/
+│       │   ├── auth/
+│       │   ├── sleeper/
+│       │   └── leagues/        (LeaguesModule — GET /leagues)
+│       ├── app.module.ts
+│       └── main.ts
 ├── docker/
 ├── docs/
 ├── .github/workflows/
@@ -286,7 +309,8 @@ virtuoso/
 
 - **Node version EBADENGINE warning** — `eslint-visitor-keys` requires Node `^20.19.0` or `^22.13.0`; current is `v20.12.0`. Non-blocking — ESLint and all tooling work correctly. Resolve by upgrading Node when convenient.
 - **`synchronize: true` in TypeORM** — safe for local dev but must be replaced with migrations before any production deployment (Phase 7).
-- **Auth pages unstyled** — Login, Signup, and LinkSleeper pages have no Tailwind classes yet. Design tokens are configured; styling pass is deferred to after 3c is functional.
+- **Season hardcoded to `'2025'`** — `LeaguesService.syncAndFetch()` fetches 2025 leagues for development. Change the `year` constant when 2026 leagues are available.
+- **ESLint audit for `client/`** — deferred from 3c, carry into next session.
 
 ---
 
