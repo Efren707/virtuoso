@@ -27,14 +27,17 @@ a data-driven edge without needing to be statisticians.
 
 ## 2. Current Status
 
-**Phase 3c — Core Pages: COMPLETE**
-Dashboard fetches and displays the user's Sleeper leagues (fetch-and-sync pattern: Sleeper API →
-upsert to DB → return to client). Draft Room renders a static three-column layout (available
-players / draft board grid / roster + AI picks) ready for Phase 4 real-time wiring. Loading and
-error states implemented on all async operations.
+**Phase 4a — Backend Socket Gateway: COMPLETE**
+`DraftsModule` polls Sleeper's `GET /draft/{draft_id}/picks` REST endpoint (Sleeper has no
+official real-time API — the unofficial `wss://ws.sleeper.app/` was ruled out as too fragile
+to build on) every 3 seconds per actively-watched `draftId`, diffs against previously-seen
+picks, upserts new ones into `draft_picks`, and relays them to browser clients over a Socket.IO
+`/drafts` namespace. Polling is refcounted — one poller per draft, started on first subscriber
+and stopped once the last one disconnects. ESLint audit for `client/` also completed (finding:
+`dist/` build output wasn't excluded from the flat config, not real lint debt).
 
-**Next step:** Phase 4a — NestJS WebSocket gateway that subscribes to Sleeper's live draft
-WebSocket and relays pick events to the browser via Socket.IO.
+**Next step:** Phase 4b — wire the frontend up to `DraftsModule`: `socket.io-client` in React,
+`draftSlice` updates on `picks` events, reconnection logic + connection status indicator.
 
 ---
 
@@ -119,7 +122,7 @@ WebSocket and relays pick events to the browser via Socket.IO.
 
 - React SPA communicates with NestJS via REST + Socket.IO
 - NestJS connects to PostgreSQL via TypeORM
-- Sleeper REST/WebSocket APIs provide draft + league data
+- Sleeper REST API provides draft + league data (no official real-time API — draft picks are polled, not pushed)
 - Anthropic API generates recommendation explanations and draft chat
 
 **Key data flows:**
@@ -128,8 +131,8 @@ WebSocket and relays pick events to the browser via Socket.IO.
 2. User links Sleeper account → `POST /auth/link-sleeper` → Sleeper API verifies username → sleeperId stored on User row (first-claim, unique constraint)
 3. User logs in with email/password → bcrypt compare → JWT issued
 4. User views Dashboard → `GET /leagues` (JWT-protected) → backend fetches from Sleeper API using stored sleeperId → upserts each league into DB → links to user via `user_leagues` join table → returns league list
-5. Draft starts → backend subscribes to Sleeper's WebSocket for that draft
-6. Sleeper sends pick events → backend relays to browser via Socket.IO
+5. Draft starts → client emits `joinDraft` over Socket.IO → backend's `DraftPollerService` starts polling `GET /draft/{draft_id}/picks` for that draft (refcounted — shared across all clients watching the same draft)
+6. Each poll diffs against previously-seen picks (by `pick_no`) → new picks are upserted into `draft_picks` → relayed to all clients in that draft's room via a `picks` Socket.IO event
 7. User requests recommendation → backend scores available players, calls Claude for explanation
 8. AI response streams back to client
 
@@ -149,6 +152,9 @@ WebSocket and relays pick events to the browser via Socket.IO.
 - **League sync strategy:** fetch-and-sync on every Dashboard load (`GET /leagues` upserts from Sleeper into DB). Keeps data fresh; populates `leagues` table for Phase 4 draft subscriptions.
 - **`leagueSlice` uses `createAsyncThunk`** — pending/fulfilled/rejected states handled in `extraReducers`, not manual dispatch of `setLoading`/`setLeagues`/`setError`.
 - **Season hardcoded to `'2025'`** in `LeaguesService` for development. The constant is in `server/src/modules/leagues/leagues.service.ts` line ~25. Make user-selectable in a later phase.
+- **Draft pick sync strategy:** REST polling, not a WebSocket subscription. Sleeper has no official real-time draft API — the community `wss://ws.sleeper.app/` endpoint is unofficial/undocumented and could break without notice, so `DraftPollerService` polls `GET /draft/{draft_id}/picks` every 3s (`DRAFT_POLL_INTERVAL_MS` in `server/src/modules/drafts/draft-poller.service.ts`) instead. One poller runs per actively-watched `draftId`, refcounted by connected/subscribed clients.
+- **`DraftPick.player` is nullable**, with a companion `sleeperPlayerId` raw-id column. Pick events only carry Sleeper's `player_id`, and no player-sync job exists yet (Phase 5), so the `player` relation is only populated when a matching `Player` row already exists by `sleeperId` — otherwise it's `null` and `sleeperPlayerId` is relayed to the client as-is.
+- **`DraftPick.league` stays required.** If no `League` row matches an incoming pick's `draftId`, that pick is not persisted (logged as a warning) — but it's still relayed live over the socket.
 
 ---
 
@@ -201,16 +207,16 @@ NestJS + TypeORM entities, `SleeperModule` (Sleeper REST API wrapper), `AuthModu
 - [x] Dashboard: fetch + display user's leagues (cards with name, season, scoring type, roster count)
 - [x] Draft Room: static three-column layout (available players / draft board / roster + AI picks)
 - [x] Loading/error states on all async ops (spinner + error message + retry button)
-- [ ] ESLint audit for `client/`
+- [x] ESLint audit for `client/`
 
 ---
 
 ### Phase 4 — Real-Time Draft
 
-#### 4a — Backend Socket Gateway
+#### 4a — Backend Socket Gateway ✅ COMPLETE
 
-- [ ] NestJS `@WebSocketGateway` + connect to Sleeper's WebSocket for a draft
-- [ ] Parse pick events, relay to connected clients
+- [x] NestJS `@WebSocketGateway` (`DraftsGateway`, `/drafts` namespace) + `DraftPollerService` polling Sleeper's `GET /draft/{draft_id}/picks` (no official real-time API exists — see Architecture Decisions)
+- [x] Parse pick events, persist new ones to `draft_picks`, relay to connected clients via a `picks` Socket.IO event
 
 #### 4b — Frontend Live Updates
 
@@ -295,7 +301,8 @@ virtuoso/
 │       ├── modules/
 │       │   ├── auth/
 │       │   ├── sleeper/
-│       │   └── leagues/        (LeaguesModule — GET /leagues)
+│       │   ├── leagues/        (LeaguesModule — GET /leagues)
+│       │   └── drafts/         (DraftsModule — DraftsGateway + DraftPollerService)
 │       ├── app.module.ts
 │       └── main.ts
 ├── docker/
@@ -310,7 +317,6 @@ virtuoso/
 - **Node version EBADENGINE warning** — `eslint-visitor-keys` requires Node `^20.19.0` or `^22.13.0`; current is `v20.12.0`. Non-blocking — ESLint and all tooling work correctly. Resolve by upgrading Node when convenient.
 - **`synchronize: true` in TypeORM** — safe for local dev but must be replaced with migrations before any production deployment (Phase 7).
 - **Season hardcoded to `'2025'`** — `LeaguesService.syncAndFetch()` fetches 2025 leagues for development. Change the `year` constant when 2026 leagues are available.
-- **ESLint audit for `client/`** — deferred from 3c, carry into next session.
 
 ---
 

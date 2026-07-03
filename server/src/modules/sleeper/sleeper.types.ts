@@ -14,3 +14,14 @@ export interface SleeperLeague {
   scoring_settings: Record<string, number>;
   draft_id: string;
 }
+
+export interface SleeperPick {
+  round: number;
+  roster_id: number;
+  player_id: string;
+  picked_by: string;
+  pick_no: number;
+  draft_id: string;
+  metadata?: Record<string, string>;
+  is_keeper?: boolean | null;
+}

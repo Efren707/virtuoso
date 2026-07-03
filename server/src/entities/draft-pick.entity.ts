@@ -28,9 +28,12 @@ export class DraftPick {
   @Column()
   pickedBy!: string;
 
-  @ManyToOne(() => Player)
+  @Column({ type: 'varchar', nullable: true, name: 'sleeper_player_id' })
+  sleeperPlayerId!: string | null;
+
+  @ManyToOne(() => Player, { nullable: true })
   @JoinColumn({ name: 'player_id' })
-  player!: Player;
+  player!: Player | null;
 
   @ManyToOne(() => League, (league) => league.picks)
   @JoinColumn({ name: 'league_id' })

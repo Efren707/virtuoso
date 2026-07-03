@@ -58,4 +58,28 @@ describe('SleeperService', () => {
     );
     expect(result).toEqual(mockLeagues);
   });
+
+  it('getDraftPicks returns picks array', async () => {
+    const mockPicks = [
+      {
+        round: 1,
+        roster_id: 1,
+        player_id: '4046',
+        picked_by: '123',
+        pick_no: 1,
+        draft_id: 'draft-abc',
+      },
+    ];
+
+    jest
+      .spyOn(httpService, 'get')
+      .mockReturnValue(of({ data: mockPicks } as any));
+
+    const result = await service.getDraftPicks('draft-abc');
+
+    expect(httpService.get).toHaveBeenCalledWith(
+      'https://api.sleeper.app/v1/draft/draft-abc/picks',
+    );
+    expect(result).toEqual(mockPicks);
+  });
 });

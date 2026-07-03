@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { SleeperLeague, SleeperUser } from './sleeper.types';
+import { SleeperLeague, SleeperPick, SleeperUser } from './sleeper.types';
 
 const SLEEPER_BASE_URL = 'https://api.sleeper.app/v1';
 
@@ -23,6 +23,15 @@ export class SleeperService {
     const { data } = await firstValueFrom(
       this.http.get<SleeperLeague[]>(
         `${SLEEPER_BASE_URL}/user/${userId}/leagues/nfl/${season}`,
+      ),
+    );
+    return data;
+  }
+
+  async getDraftPicks(draftId: string): Promise<SleeperPick[]> {
+    const { data } = await firstValueFrom(
+      this.http.get<SleeperPick[]>(
+        `${SLEEPER_BASE_URL}/draft/${draftId}/picks`,
       ),
     );
     return data;

@@ -10,6 +10,7 @@ import { DraftPick } from './entities/draft-pick.entity';
 import { SleeperModule } from './modules/sleeper/sleeper.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { LeaguesModule } from './modules/leagues/leagues.module';
+import { DraftsModule } from './modules/drafts/drafts.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { LeaguesModule } from './modules/leagues/leagues.module';
       }),
     }),
     LeaguesModule,
+    DraftsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
