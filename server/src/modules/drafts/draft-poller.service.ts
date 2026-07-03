@@ -64,6 +64,21 @@ export class DraftPollerService implements OnModuleDestroy {
     }
   }
 
+  async getPicks(draftId: string): Promise<RelayedPick[]> {
+    const picks = await this.draftPickRepo.find({
+      where: { draftId },
+      order: { pickNumber: 'ASC' },
+    });
+
+    return picks.map((p) => ({
+      draftId: p.draftId,
+      round: p.round,
+      pickNumber: p.pickNumber,
+      pickedBy: p.pickedBy,
+      sleeperPlayerId: p.sleeperPlayerId ?? '',
+    }));
+  }
+
   private async pollOnce(
     draftId: string,
     onNewPicks: (picks: RelayedPick[]) => void,

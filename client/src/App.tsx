@@ -17,7 +17,7 @@ export default function App() {
 
         <Route element={<PrivateRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/draft/:id" element={<DraftRoomPage />} />
+          <Route path="/draft/:draftId" element={<DraftRoomPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

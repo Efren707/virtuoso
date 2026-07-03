@@ -27,17 +27,19 @@ a data-driven edge without needing to be statisticians.
 
 ## 2. Current Status
 
-**Phase 4a — Backend Socket Gateway: COMPLETE**
-`DraftsModule` polls Sleeper's `GET /draft/{draft_id}/picks` REST endpoint (Sleeper has no
-official real-time API — the unofficial `wss://ws.sleeper.app/` was ruled out as too fragile
-to build on) every 3 seconds per actively-watched `draftId`, diffs against previously-seen
-picks, upserts new ones into `draft_picks`, and relays them to browser clients over a Socket.IO
-`/drafts` namespace. Polling is refcounted — one poller per draft, started on first subscriber
-and stopped once the last one disconnects. ESLint audit for `client/` also completed (finding:
-`dist/` build output wasn't excluded from the flat config, not real lint debt).
+**Phase 4b — Frontend Live Updates: COMPLETE**
+`DraftRoomPage` now connects to `DraftsGateway` over `socket.io-client`: a `useDraftSocket` hook
+joins the `/drafts` namespace room for the current `draftId`, dispatches incoming `picks` events
+into `draftSlice`, and re-emits `joinDraft` on every reconnect (the server keys room membership
+by `socket.id`, which changes on reconnect, so rejoining is required — not optional). A new
+`GET /drafts/:draftId/picks` endpoint backfills existing picks on mount so refreshing mid-draft
+doesn't lose history. A connection status badge (connecting / live / reconnecting / disconnected)
+reflects live socket state. Fixed a latent bug found while wiring this up: the Dashboard linked
+to a League's own DB `id` instead of its Sleeper `draftId` — harmless while nothing consumed the
+route param, but would have silently broken every draft-room navigation once real data landed.
 
-**Next step:** Phase 4b — wire the frontend up to `DraftsModule`: `socket.io-client` in React,
-`draftSlice` updates on `picks` events, reconnection logic + connection status indicator.
+**Next step:** Phase 5a — `RecommendationService`: score available players by ADP, positional
+balance, scarcity, and bye weeks; expose via `GET /recommendations?draftId=&pickNumber=`.
 
 ---
 
@@ -47,7 +49,7 @@ and stopped once the last one disconnects. ESLint audit for `client/` also compl
 
 - [x] Sleeper account connection (email/password signup → link Sleeper username)
 - [x] Display user's leagues and upcoming/active drafts
-- [ ] Real-time draft board sync (picks update live)
+- [x] Real-time draft board sync (picks update live)
 - [ ] Basic player recommendations based on ADP + positional scarcity
 - [ ] Available player list with pick suggestions highlighted
 
@@ -155,6 +157,11 @@ and stopped once the last one disconnects. ESLint audit for `client/` also compl
 - **Draft pick sync strategy:** REST polling, not a WebSocket subscription. Sleeper has no official real-time draft API — the community `wss://ws.sleeper.app/` endpoint is unofficial/undocumented and could break without notice, so `DraftPollerService` polls `GET /draft/{draft_id}/picks` every 3s (`DRAFT_POLL_INTERVAL_MS` in `server/src/modules/drafts/draft-poller.service.ts`) instead. One poller runs per actively-watched `draftId`, refcounted by connected/subscribed clients.
 - **`DraftPick.player` is nullable**, with a companion `sleeperPlayerId` raw-id column. Pick events only carry Sleeper's `player_id`, and no player-sync job exists yet (Phase 5), so the `player` relation is only populated when a matching `Player` row already exists by `sleeperId` — otherwise it's `null` and `sleeperPlayerId` is relayed to the client as-is.
 - **`DraftPick.league` stays required.** If no `League` row matches an incoming pick's `draftId`, that pick is not persisted (logged as a warning) — but it's still relayed live over the socket.
+- **Client connects to the Socket.IO server directly, not through Vite's dev proxy.** `vite.config.ts`'s `/api` proxy only handles HTTP; a `VITE_SOCKET_URL` env var (default `http://localhost:3000`) is used instead, since Phase 7 puts the frontend (Vercel) and backend (Railway/Render) on separate domains anyway — proxying in dev would just be solving a problem twice.
+- **`vite.config.ts` sets `envDir: '../'`** so Vite reads the single root `.env` instead of wanting its own copy inside `client/`. Only vars prefixed `VITE_` are exposed to the browser bundle — this is a Vite security boundary, not a project convention, so don't expect e.g. `DATABASE_PASSWORD` to ever reach client code even if referenced elsewhere.
+- **`services/socket.ts` exports a factory (`createDraftSocket()`), not a shared singleton.** Unlike `services/api.ts`'s one shared axios instance, each Draft Room mount gets a fresh socket (`forceNew: true`, `autoConnect: false`) so connection lifecycle and event listeners never need to be manually reconciled across mounts — the socket is simply discarded on unmount.
+- **`useDraftSocket` re-emits `joinDraft` on every `'connect'` event, including reconnects.** Socket.IO fires `'connect'` on both the initial connection and every successful reconnect, and since `DraftsGateway` tracks room membership by `socket.id` (which changes on reconnect), skipping the re-emit would leave a reconnected client silently out of its draft's room.
+- **Route param renamed `/draft/:id` → `/draft/:draftId`** for clarity, now that `DraftRoomPage` actually consumes it (previously it was just displayed, so the ambiguity with `League.id` was latent and undetected).
 
 ---
 
@@ -188,7 +195,7 @@ NestJS + TypeORM entities, `SleeperModule` (Sleeper REST API wrapper), `AuthModu
 #### 3a — Scaffold + Config ✅ COMPLETE
 
 - [x] Vite + React + TypeScript in `client/`
-- [x] Tailwind CSS, React Router (`/login`, `/signup`, `/link-sleeper`, `/dashboard`, `/draft/:id`)
+- [x] Tailwind CSS, React Router (`/login`, `/signup`, `/link-sleeper`, `/dashboard`, `/draft/:draftId`)
 - [x] Redux Toolkit store: `authSlice`, `leagueSlice`, `draftSlice`
 - [x] Axios service layer wired to NestJS
 - [x] ESLint for `client/`
@@ -218,10 +225,11 @@ NestJS + TypeORM entities, `SleeperModule` (Sleeper REST API wrapper), `AuthModu
 - [x] NestJS `@WebSocketGateway` (`DraftsGateway`, `/drafts` namespace) + `DraftPollerService` polling Sleeper's `GET /draft/{draft_id}/picks` (no official real-time API exists — see Architecture Decisions)
 - [x] Parse pick events, persist new ones to `draft_picks`, relay to connected clients via a `picks` Socket.IO event
 
-#### 4b — Frontend Live Updates
+#### 4b — Frontend Live Updates ✅ COMPLETE
 
-- [ ] `socket.io-client` in React, `draftSlice` updates on pick events
-- [ ] Reconnection logic + connection status indicator
+- [x] `socket.io-client` in React, `draftSlice` updates on pick events
+- [x] Reconnection logic + connection status indicator
+- [x] `GET /drafts/:draftId/picks` backfill endpoint (not originally scoped, but added so refreshing mid-draft doesn't lose pick history)
 
 ---
 
@@ -286,9 +294,12 @@ virtuoso/
 │       │   ├── index.ts        (RootState, AppDispatch)
 │       │   ├── authSlice.ts
 │       │   ├── leagueSlice.ts  (fetchLeagues thunk)
-│       │   └── draftSlice.ts
+│       │   └── draftSlice.ts   (fetchDraftPicks thunk, pickReceived/connectionStatusChanged reducers)
 │       ├── services/
-│       │   └── api.ts          (axios instance + login/signup/linkSleeper/getLeagues)
+│       │   ├── api.ts          (axios instance + login/signup/linkSleeper/getLeagues/getDraftPicks)
+│       │   └── socket.ts       (createDraftSocket factory, typed Socket.IO events)
+│       ├── hooks/
+│       │   └── useDraftSocket.ts  (join/leave + reconnect-rejoin logic, dispatches to draftSlice)
 │       └── components/
 │           └── PrivateRoute.tsx
 ├── server/
@@ -302,7 +313,7 @@ virtuoso/
 │       │   ├── auth/
 │       │   ├── sleeper/
 │       │   ├── leagues/        (LeaguesModule — GET /leagues)
-│       │   └── drafts/         (DraftsModule — DraftsGateway + DraftPollerService)
+│       │   └── drafts/         (DraftsModule — DraftsGateway + DraftPollerService + DraftsController)
 │       ├── app.module.ts
 │       └── main.ts
 ├── docker/

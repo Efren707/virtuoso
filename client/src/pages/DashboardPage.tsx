@@ -34,19 +34,32 @@ export default function DashboardPage() {
         <p className="text-gray-400">No leagues found for this season.</p>
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {leagues.map((league) => (
-            <Link
-              key={league.id}
-              to={`/draft/${league.id}`}
-              className="block p-5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
-            >
-              <p className="font-semibold text-lg">{league.name}</p>
-              <p className="text-sm text-gray-400 mt-1">
-                {league.season} · {league.totalRosters} teams · {scoringLabel(league.scoringType)}
-              </p>
-              <p className="text-xs text-gray-500 mt-1 capitalize">{league.status}</p>
-            </Link>
-          ))}
+          {leagues.map((league) =>
+            league.draftId ? (
+              <Link
+                key={league.id}
+                to={`/draft/${league.draftId}`}
+                className="block p-5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
+              >
+                <p className="font-semibold text-lg">{league.name}</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {league.season} · {league.totalRosters} teams · {scoringLabel(league.scoringType)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1 capitalize">{league.status}</p>
+              </Link>
+            ) : (
+              <div
+                key={league.id}
+                className="block p-5 rounded-xl border border-white/10 bg-white/5 opacity-50 cursor-not-allowed"
+              >
+                <p className="font-semibold text-lg">{league.name}</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {league.season} · {league.totalRosters} teams · {scoringLabel(league.scoringType)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">No draft yet</p>
+              </div>
+            ),
+          )}
         </div>
       )}
     </div>

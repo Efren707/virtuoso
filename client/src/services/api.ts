@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { League } from '../store/leagueSlice';
+import type { DraftPick } from '../store/draftSlice';
 
 const api = axios.create({
   baseURL: '/api',
@@ -46,6 +47,11 @@ export async function linkSleeper(sleeperUsername: string) {
 
 export async function getLeagues(): Promise<League[]> {
   const res = await api.get<League[]>('/leagues');
+  return res.data;
+}
+
+export async function getDraftPicks(draftId: string): Promise<DraftPick[]> {
+  const res = await api.get<DraftPick[]>(`/drafts/${draftId}/picks`);
   return res.data;
 }
 

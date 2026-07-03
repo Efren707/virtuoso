@@ -1,10 +1,23 @@
+import { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
+import type { AppDispatch, RootState } from '../store';
+import { fetchDraftPicks, type ConnectionStatus } from '../store/draftSlice';
+import { useDraftSocket } from '../hooks/useDraftSocket';
 
 const ROUNDS = 15;
 const TEAMS = 10;
 
 export default function DraftRoomPage() {
-  const { id } = useParams<{ id: string }>();
+  const { draftId } = useParams<{ draftId: string }>();
+  const dispatch = useDispatch<AppDispatch>();
+  const { picks, connectionStatus, loading, error } = useSelector((s: RootState) => s.draft);
+
+  useEffect(() => {
+    if (draftId) dispatch(fetchDraftPicks(draftId));
+  }, [draftId, dispatch]);
+
+  useDraftSocket(draftId);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -22,8 +35,45 @@ export default function DraftRoomPage() {
       <main className="flex-1 overflow-auto p-4">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="font-bold text-lg">Draft Board</h1>
-          <span className="text-sm text-gray-400">League {id?.slice(0, 8)}…</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400">Draft {draftId?.slice(0, 8)}…</span>
+            <ConnectionBadge status={connectionStatus} />
+          </div>
         </div>
+
+        <section className="mb-6">
+          <h2 className="font-semibold mb-2 text-sm text-gray-400">Recent Picks</h2>
+          {loading && <p className="text-sm text-gray-400">Loading picks…</p>}
+          {error && (
+            <div>
+              <p className="text-red-400 text-sm">{error}</p>
+              <button
+                onClick={() => draftId && dispatch(fetchDraftPicks(draftId))}
+                className="mt-1 underline text-xs"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {!loading && !error && picks.length === 0 && (
+            <p className="text-sm text-gray-500">No picks yet.</p>
+          )}
+          <div className="space-y-1">
+            {[...picks].reverse().map((pick) => (
+              <div
+                key={pick.pickNumber}
+                className="flex items-center justify-between text-sm p-2 rounded bg-white/5"
+              >
+                <span className="text-gray-400">
+                  Pick {pick.pickNumber} · Rd {pick.round}
+                </span>
+                <span>{pick.pickedBy}</span>
+                <span className="text-gray-500">{pick.sleeperPlayerId}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <div className="overflow-x-auto">
           <table className="text-xs border-collapse w-full">
             <thead>
@@ -72,5 +122,24 @@ export default function DraftRoomPage() {
         </section>
       </aside>
     </div>
+  );
+}
+
+function ConnectionBadge({ status }: { status: ConnectionStatus }) {
+  const config: Record<ConnectionStatus, { label: string; className: string }> = {
+    connecting: { label: 'Connecting…', className: 'bg-yellow-500/20 text-yellow-400' },
+    connected: { label: 'Live', className: 'bg-green-500/20 text-green-400' },
+    reconnecting: { label: 'Reconnecting…', className: 'bg-yellow-500/20 text-yellow-400' },
+    disconnected: { label: 'Disconnected', className: 'bg-red-500/20 text-red-400' },
+  };
+  const { label, className } = config[status];
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${className}`}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+      {label}
+    </span>
   );
 }
